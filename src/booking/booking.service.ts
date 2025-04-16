@@ -6,6 +6,7 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { Booking } from './booking.entity';
 import { BOOKING_STATUS } from 'src/common/enum';
 import { MakePaymentDto } from './dto/make-payment.dto';
+import { Cron } from '@nestjs/schedule';
 
 @Injectable()
 export class BookingService {
@@ -49,8 +50,8 @@ export class BookingService {
             }
             const bookingTime = bookingDetails.created_at.getTime();
             const currentTime = Date.now();
-            if(currentTime - bookingTime > 300000){
-                await this.bookingRepository.updateBooking(data.bookingId,{status:BOOKING_STATUS.CANCELLED});
+            if(currentTime - bookingTime > 1000*60*10 + 5.5*60*60*1000){
+                await this.cancelBooking(data.bookingId);
                 throw new BadRequestException('Booking has expired');
             }
             if(bookingDetails.totalCost != data.totalCost){
@@ -69,6 +70,42 @@ export class BookingService {
             throw(error)
         } finally {
             queryRunner.release();
+        }
+    }
+
+    async cancelBooking(bookingId: number): Promise<void>{
+        const queryRunner =  this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        try {
+            const bookingDetails = await this.bookingRepository.findOne(bookingId, queryRunner.manager);
+            if(bookingDetails.status == BOOKING_STATUS.CANCELLED){
+                await queryRunner.commitTransaction();
+                return;
+            }
+
+            await axios.patch(`http://localhost:3000/api/flight/${bookingDetails.flightId}/seats`, {
+                seats: bookingDetails.noOfSeats,
+                dec: false,
+            });
+
+            await this.bookingRepository.updateBooking(bookingId,{status:BOOKING_STATUS.CANCELLED}, queryRunner.manager);
+            await queryRunner.commitTransaction();
+
+        } catch (error) {
+            queryRunner.rollbackTransaction();
+            throw(error);
+        } finally{
+            queryRunner.release();
+        }
+    }
+
+    @Cron('*/10 * * * *')
+    async cancelOldBookings(){
+        try {
+            const oldBookings = await this.bookingRepository.cancelOldBookings();
+        } catch (error) {
+            throw(error)
         }
     }
 }
