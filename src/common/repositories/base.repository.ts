@@ -2,7 +2,6 @@ import {
     DataSource,
     DeepPartial,
     EntityTarget,
-    FindOptionsWhere,
     Repository,
     ObjectLiteral,
   } from 'typeorm';

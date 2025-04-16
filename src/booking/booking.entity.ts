@@ -27,9 +27,6 @@ export class Booking{
     @Column()
     totalCost: number;
 
-    @Column({unique: true})
-    name:string;
-
     @CreateDateColumn()
     created_at: Date;
 
