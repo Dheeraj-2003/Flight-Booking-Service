@@ -12,12 +12,14 @@ import { Cron } from '@nestjs/schedule';
 export class BookingService {
     constructor(private readonly bookingRepository:BookingRepository, private readonly dataSource: DataSource){}
 
+    private flightUrl = process.env.FLIGHT_SERVICE_URL
+
     async createBooking(data:CreateBookingDto){
         const queryRunner =  this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
         try {
-            const response = await axios.get(`http://localhost:3000/api/flight/${data.flightId}`);
+            const response = await axios.get(`${this.flightUrl}/api/flight/${data.flightId}`);
             const flightData = response.data;
             if(data.noOfSeats > flightData.data.totalSeats){
                 throw new ConflictException('Seats not available')
@@ -26,7 +28,7 @@ export class BookingService {
             const bookingPayload = {...data, totalCost: billingAmount};
             const booking = await this.bookingRepository.createBooking(bookingPayload, queryRunner.manager);
 
-            await axios.patch(`http://localhost:3000/api/flight/${data.flightId}/seats`, {
+            await axios.patch(`${this.flightUrl}/api/flight/${data.flightId}/seats`, {
                 seats: data.noOfSeats,
             })
 
@@ -85,7 +87,7 @@ export class BookingService {
                 return;
             }
 
-            await axios.patch(`http://localhost:3000/api/flight/${bookingDetails.flightId}/seats`, {
+            await axios.patch(`${this.flightUrl}/api/flight/${bookingDetails.flightId}/seats`, {
                 seats: bookingDetails.noOfSeats,
                 dec: false,
             });
